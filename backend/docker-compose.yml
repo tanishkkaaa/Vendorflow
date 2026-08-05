@@ -1,0 +1,78 @@
+version: '3.9'
+
+services:
+  api:
+    build: .
+    container_name: vendorflow-api
+    ports:
+      - "5000:5000"
+    env_file: .env
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/vendorflow
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - mongo
+      - redis
+    restart: unless-stopped
+
+  email-worker:
+    build: .
+    container_name: vendorflow-email-worker
+    command: node dist/jobs/workers/email.worker.js
+    env_file: .env
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/vendorflow
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - mongo
+      - redis
+    restart: unless-stopped
+
+  ai-worker:
+    build: .
+    container_name: vendorflow-ai-worker
+    command: node dist/jobs/workers/aiExtraction.worker.js
+    env_file: .env
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/vendorflow
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - mongo
+      - redis
+    restart: unless-stopped
+
+  notification-worker:
+    build: .
+    container_name: vendorflow-notification-worker
+    command: node dist/jobs/workers/notification.worker.js
+    env_file: .env
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/vendorflow
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - mongo
+      - redis
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7
+    container_name: vendorflow-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: vendorflow-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+volumes:
+  mongo-data:

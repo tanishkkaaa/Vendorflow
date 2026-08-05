@@ -1,0 +1,97 @@
+version: '3.9'
+
+# One-command local stack for the whole VendorFlow AI platform:
+# frontend (nginx, port 8080) -> backend API (port 5000) -> Mongo + Redis
+# plus the 3 background workers the backend relies on for AI extraction,
+# email, and notifications.
+#
+# Usage:
+#   cp backend/.env.example backend/.env   # fill in GEMINI_API_KEY, CLOUDINARY_*, SMTP_*
+#   cp frontend/.env.example frontend/.env # defaults already point at localhost:5000
+#   docker compose up --build
+
+services:
+  frontend:
+    build: ./frontend
+    container_name: vendorflow-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  api:
+    build: ./backend
+    container_name: vendorflow-api
+    ports:
+      - "5000:5000"
+    env_file: ./backend/.env
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/vendorflow
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - mongo
+      - redis
+    restart: unless-stopped
+
+  email-worker:
+    build: ./backend
+    container_name: vendorflow-email-worker
+    command: node dist/jobs/workers/email.worker.js
+    env_file: ./backend/.env
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/vendorflow
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - mongo
+      - redis
+    restart: unless-stopped
+
+  ai-worker:
+    build: ./backend
+    container_name: vendorflow-ai-worker
+    command: node dist/jobs/workers/aiExtraction.worker.js
+    env_file: ./backend/.env
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/vendorflow
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - mongo
+      - redis
+    restart: unless-stopped
+
+  notification-worker:
+    build: ./backend
+    container_name: vendorflow-notification-worker
+    command: node dist/jobs/workers/notification.worker.js
+    env_file: ./backend/.env
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/vendorflow
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - mongo
+      - redis
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7
+    container_name: vendorflow-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: vendorflow-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+volumes:
+  mongo-data:
